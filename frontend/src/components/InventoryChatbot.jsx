@@ -3,7 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import '../index.css';
 
 // Configure the backend URL based on environment
-const BACKEND_URL = 'http://localhost:8000/api/chat';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const BACKEND_URL = `${API_BASE_URL}/api/chat`;
 
 const getStoredToken = () => {
   let token = localStorage.getItem("access_token") || 
@@ -70,7 +71,7 @@ function InventoryChatbot() {
     }
 
     // Fetch full profile from /api/me for the real profile info
-    fetch('http://localhost:8000/api/me', { headers })
+    fetch(`${API_BASE_URL}/api/me`, { headers })
         .then(r => {
           if (!r.ok) {
             console.error("Profile fetch response not OK:", r.status, r.statusText);
@@ -104,7 +105,7 @@ function InventoryChatbot() {
         });
 
     // Check backend AI / Quota status
-    fetch('http://localhost:8000/api/status')
+    fetch(`${API_BASE_URL}/api/status`)
         .then(r => r.ok ? r.json() : null)
         .then(statusData => {
           if (isMounted && statusData) {
@@ -189,12 +190,12 @@ function InventoryChatbot() {
       if (type === 'user') {
         const prMatch = inputValue.match(/PR@([a-zA-Z0-9_-]+)/i);
         const prParam = prMatch ? `?pr_number=${prMatch[1]}` : '';
-        url = `http://localhost:8000/api/mentions/allowed${prParam}`;
+        url = `${API_BASE_URL}/api/mentions/allowed${prParam}`;
       }
-      else if (type === 'pr') url = 'http://localhost:8000/api/entities/purchase-requests';
-      else if (type === 'inv') url = 'http://localhost:8000/api/entities/invoices';
-      else if (type === 'po') url = 'http://localhost:8000/api/entities/purchase-orders';
-      else if (type === 'asset') url = 'http://localhost:8000/api/entities/assets';
+      else if (type === 'pr') url = `${API_BASE_URL}/api/entities/purchase-requests`;
+      else if (type === 'inv') url = `${API_BASE_URL}/api/entities/invoices`;
+      else if (type === 'po') url = `${API_BASE_URL}/api/entities/purchase-orders`;
+      else if (type === 'asset') url = `${API_BASE_URL}/api/entities/assets`;
       
       const res = await fetch(url, { headers });
       if (res.ok) {
@@ -429,7 +430,7 @@ function InventoryChatbot() {
         attachment: supportAttachment
       };
       
-      const res = await fetch('http://localhost:8000/api/support', {
+      const res = await fetch(`${API_BASE_URL}/api/support`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
