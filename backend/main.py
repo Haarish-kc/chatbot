@@ -195,6 +195,45 @@ async def support_endpoint(request: SupportRequest, authorization: str = Header(
             detail="⚠️ We couldn't send your issue right now. Please try again later."
         )
 
+class FeedbackRequest(BaseModel):
+    rating: Optional[int] = 0
+    feedback_text: Optional[str] = ""
+
+@app.post("/api/feedback")
+async def feedback_endpoint(request: FeedbackRequest, authorization: str = Header(None)):
+    token = ""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1].strip('"\'')
+    else:
+        token = settings.INVENTORY_ACCESS_TOKEN
+        
+    user_info = {}
+    if token:
+        resolved = await verify_and_get_user(token)
+        if "error" not in resolved:
+            user_info = resolved
+            
+    from services.email_service import send_feedback_email
+    
+    try:
+        success = await send_feedback_email(
+            user_info=user_info,
+            rating=request.rating or 0,
+            feedback_text=request.feedback_text or ""
+        )
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="⚠️ We couldn't send your feedback right now. Please try again later."
+            )
+        return {"success": True, "message": "Your feedback has been submitted successfully."}
+    except Exception as e:
+        logger.error(f"Feedback endpoint failed to send email: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="⚠️ We couldn't send your feedback right now. Please try again later."
+        )
+
 @app.get("/api/mentions/allowed")
 async def allowed_mentions(pr_number: Optional[str] = None, authorization: str = Header(None)):
     """

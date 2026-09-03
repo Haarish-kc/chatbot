@@ -126,6 +126,124 @@ Timestamp:
     </html>
     """
 
+    return await _dispatch_email(
+        subject=subject,
+        email_body=email_body,
+        html_body=html_body,
+        sender_email=sender_email,
+        recipient_email=recipient_email,
+        file_data=file_data,
+        filename=filename
+    )
+
+
+async def send_feedback_email(user_info: dict, rating: int = 0, feedback_text: str = "") -> bool:
+    """
+    Formats and dispatches a User Feedback email asynchronously to REPORT_RECIPIENT_EMAIL.
+    """
+    first = user_info.get("firstName", "")
+    last = user_info.get("lastName", "")
+    sender_name = f"{first} {last}".strip() or user_info.get("username", "Unknown User")
+    sender_email = user_info.get("email", "unknown@company.com")
+    sender_role = user_info.get("role", "STAFF")
+    sender_dept = user_info.get("department", "General")
+    server_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    recipient_email = settings.REPORT_RECIPIENT_EMAIL
+    rating_display = f"{rating}/5 ⭐" if rating else "Not Rated"
+    stars_html = "".join(["★" if i <= (rating or 0) else "☆" for i in range(1, 6)])
+
+    subject = f"Inventory AI Assistant - User Feedback ({rating_display})"
+
+    email_body = f"""User Feedback Details
+
+User:
+{sender_name}
+
+Email:
+{sender_email}
+
+Role:
+{sender_role}
+
+Department:
+{sender_dept}
+
+Rating:
+{rating_display}
+
+Feedback Comments:
+{feedback_text or 'No written comments provided.'}
+
+Submitted From:
+Inventory AI Assistant
+
+Timestamp:
+{server_timestamp}
+"""
+
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+        <h2 style="color: #059669; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-top: 0;">💬 User Feedback Received</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; width: 140px; color: #64748b;">User:</td>
+            <td style="padding: 6px 0; color: #1e293b;">{sender_name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #64748b;">Email:</td>
+            <td style="padding: 6px 0; color: #1e293b;"><a href="mailto:{sender_email}" style="color: #2563eb; text-decoration: none;">{sender_email}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #64748b;">Role:</td>
+            <td style="padding: 6px 0; color: #1e293b;">{sender_role}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #64748b;">Department:</td>
+            <td style="padding: 6px 0; color: #1e293b;">{sender_dept}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #64748b;">Rating:</td>
+            <td style="padding: 6px 0; color: #d97706; font-size: 1.1rem; font-weight: bold;">{stars_html} ({rating_display})</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #64748b;">Submitted From:</td>
+            <td style="padding: 6px 0; color: #1e293b;">Inventory AI Assistant</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: bold; color: #64748b;">Timestamp:</td>
+            <td style="padding: 6px 0; color: #1e293b;">{server_timestamp}</td>
+          </tr>
+        </table>
+        
+        <h3 style="color: #1e293b; border-top: 1px solid #f1f5f9; padding-top: 12px; margin-bottom: 8px;">Feedback Comments:</h3>
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; color: #334155; font-size: 0.95rem;">{feedback_text or 'No written comments provided.'}</div>
+      </body>
+    </html>
+    """
+
+    return await _dispatch_email(
+        subject=subject,
+        email_body=email_body,
+        html_body=html_body,
+        sender_email=sender_email,
+        recipient_email=recipient_email
+    )
+
+
+async def _dispatch_email(
+    subject: str,
+    email_body: str,
+    html_body: str,
+    sender_email: str,
+    recipient_email: str,
+    file_data: Optional[bytes] = None,
+    filename: Optional[str] = None
+) -> bool:
+    """
+    Internal helper to dispatch emails via resolved SMTP profile or fallback log file.
+    """
     # Dynamic SMTP Profile Resolution
     profile_name = str(settings.EMAIL_DEFAULT_PROFILE or "").upper().strip()
     
@@ -181,7 +299,6 @@ Timestamp:
                 msg.attach(part)
             
             # Send the email
-            # Decide between SMTP_SSL (port 465) or standard SMTP with STARTTLS (port 587)
             is_ssl = secure_val or port == 465
             if is_ssl:
                 server_conn = smtplib.SMTP_SSL(host, port)
@@ -194,12 +311,11 @@ Timestamp:
                 server.login(user, password)
                 server.sendmail(user, recipient_email, msg.as_string())
             
-            logger.info(f"Support email successfully sent to {recipient_email} using profile '{profile_name or 'default'}'")
+            logger.info(f"Email successfully sent to {recipient_email} using profile '{profile_name or 'default'}'")
             return True
             
         except Exception as smtp_err:
             logger.error(f"SMTP delivery to {recipient_email} using profile '{profile_name or 'default'}' failed: {smtp_err}")
-            # Raise exception in production to prevent false success feedback
             raise RuntimeError(f"Email delivery failed: {smtp_err}")
             
     # Fallback to local log file only in DEVELOPMENT (when SMTP settings are missing)
@@ -212,7 +328,7 @@ Timestamp:
             f.write(email_body)
             f.write("="*60 + "\n")
             
-        logger.info(f"Support request saved locally to {log_path} (SMTP not configured).")
+        logger.info(f"Email saved locally to {log_path} (SMTP not configured).")
         return True
     except Exception as log_err:
         logger.error(f"Failed to write fallback log file: {log_err}")

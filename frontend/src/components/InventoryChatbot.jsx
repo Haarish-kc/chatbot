@@ -49,6 +49,7 @@ function InventoryChatbot() {
   const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackRating, setFeedbackRating] = useState(0);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   
   // Gen Z UI States
   const [unreadCount, setUnreadCount] = useState(0);
@@ -480,6 +481,80 @@ function InventoryChatbot() {
     } finally {
       setIsLoading(false);
       setIsSubmittingSupport(false);
+    }
+  };
+
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackRating && !feedbackText.trim()) {
+      return;
+    }
+
+    try {
+      setIsSubmittingFeedback(true);
+      const userToken = getStoredToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (userToken) {
+        headers['Authorization'] = `Bearer ${userToken}`;
+      }
+
+      const payload = {
+        rating: feedbackRating || 0,
+        feedback_text: feedbackText.trim()
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/feedback`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      const ratingStr = feedbackRating ? `${feedbackRating}/5 ⭐` : '';
+      const feedbackDetails = [
+        ratingStr && `Rating: ${ratingStr}`,
+        feedbackText.trim() && `Comments: "${feedbackText.trim()}"`
+      ].filter(Boolean).join(' — ');
+
+      if (res.ok) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            sender: 'bot',
+            text: `✅ Thank you for your feedback!${feedbackDetails ? ' (' + feedbackDetails + ')' : ''} Your response has been sent to our team via mail.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isError: false
+          }
+        ]);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            sender: 'bot',
+            text: `✅ Thank you for your feedback!${feedbackDetails ? ' (' + feedbackDetails + ')' : ''} We appreciate you helping us improve.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isError: false
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error("Feedback submit error:", err);
+      const ratingStr = feedbackRating ? `${feedbackRating}/5 ⭐` : '';
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now(),
+          sender: 'bot',
+          text: `✅ Thank you for your feedback!${ratingStr ? ' (' + ratingStr + ')' : ''} We appreciate you helping us improve.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isError: false
+        }
+      ]);
+    } finally {
+      setActivePanel(null);
+      setFeedbackText('');
+      setFeedbackRating(0);
+      setIsSubmittingFeedback(false);
     }
   };
 
@@ -1047,28 +1122,14 @@ function InventoryChatbot() {
               <div className="form-actions">
                 <button
                   type="button"
-                  onClick={() => {
-                    const rating = feedbackRating ? `${feedbackRating}/5 ⭐` : '';
-                    const msg = [
-                      rating && `Rating: ${rating}`,
-                      feedbackText && `Feedback: "${feedbackText}"`
-                    ].filter(Boolean).join(' — ');
-                    setMessages(prev => [...prev, {
-                      id: Date.now(),
-                      sender: 'bot',
-                      text: `✅ Thank you for your feedback!${msg ? ' ' + msg : ''} We appreciate you helping us improve.`,
-                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                      isError: false
-                    }]);
-                    setActivePanel(null);
-                    setFeedbackText('');
-                    setFeedbackRating(0);
-                  }}
+                  disabled={isSubmittingFeedback || (!feedbackRating && !feedbackText.trim())}
+                  onClick={handleFeedbackSubmit}
                 >
-                  Submit
+                  {isSubmittingFeedback ? 'Submitting...' : 'Submit'}
                 </button>
                 <button
                   type="button"
+                  disabled={isSubmittingFeedback}
                   onClick={() => {
                     setActivePanel(null);
                     setFeedbackText('');
